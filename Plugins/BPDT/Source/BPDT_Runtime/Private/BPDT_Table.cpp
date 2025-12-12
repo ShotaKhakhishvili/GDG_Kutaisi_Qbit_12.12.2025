@@ -219,3 +219,8 @@ int32 FBPDT_Table::ResolveColumnIndex(FName ColumnName) const
 	}
 	return INDEX_NONE;
 }
+
+int32 FBPDT_Table::GetRowCount() const
+{
+	return Rows.Num();
+}

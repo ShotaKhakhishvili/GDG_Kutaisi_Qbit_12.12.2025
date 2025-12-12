@@ -59,7 +59,7 @@ public:
 	);
 
 	bool ConvertExplicitToSerial();
-
+	int32 GetRowCount() const;
 private:
 	FBPDT_PrimaryKey MakeSerialKey(int32 Value) const;
 	FBPDT_PrimaryKey MakeExplicitKeyFromRow(const FBPDT_Row& Row) const;
