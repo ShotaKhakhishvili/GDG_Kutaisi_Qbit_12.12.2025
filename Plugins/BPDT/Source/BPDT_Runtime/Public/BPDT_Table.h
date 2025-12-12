@@ -60,10 +60,18 @@ public:
 
 	bool ConvertExplicitToSerial();
 	int32 GetRowCount() const;
+	int32 GetColumnIndex(FName ColumnName) const;
+	const TArray<FBPDT_Column>& GetColumns() const;
+	const FBPDT_Column& GetColumn(int32 Index) const;
+
+	void ForEachRow(TFunctionRef<void(const FBPDT_PrimaryKey&, const FBPDT_Row&)> Func) const;
+
+
 private:
 	FBPDT_PrimaryKey MakeSerialKey(int32 Value) const;
 	FBPDT_PrimaryKey MakeExplicitKeyFromRow(const FBPDT_Row& Row) const;
 	FBPDT_PrimaryKey ParsePKFromString(const FString& PKValue) const;
 
 	int32 ResolveColumnIndex(FName ColumnName) const;
+
 };

@@ -27,6 +27,28 @@ public:
 	{
 		return Type == Other.Type && Data == Other.Data;
 	}
+
+	FString ToString() const
+	{
+		switch (Type)
+		{
+		case EBPDT_CellType::Int:
+		{
+			int32 V;
+			FMemory::Memcpy(&V, Data.GetData(), sizeof(int32));
+			return FString::FromInt(V);
+		}
+
+		case EBPDT_CellType::String:
+		{
+			return FString(UTF8_TO_TCHAR(Data.GetData()));
+		}
+
+		default:
+			return TEXT("<PK>");
+		}
+	}
+
 };
 
 FORCEINLINE uint32 GetTypeHash(const FBPDT_PrimaryKey& Key)

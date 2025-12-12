@@ -6,8 +6,7 @@ FBPDT_Table::FBPDT_Table()
 
 void FBPDT_Table::InitSerial(const TArray<FBPDT_Column>& InColumns)
 {
-	check(InColumns.Num() > 0);
-
+	// Allow empty table schema (needed for editor utilities / "Create Empty Table")
 	PKMode = EBPDT_PrimaryKeyMode::Serial;
 	PKColumnName = NAME_None;
 	Columns = InColumns;
@@ -21,9 +20,12 @@ FBPDT_Row& FBPDT_Table::InsertRowAsDefault()
 
 	FBPDT_Row Row(Columns.Num());
 
-	for (const FBPDT_Column& Col : Columns)
+	for (int32 i = 0; i < Columns.Num(); ++i)
 	{
-		Row.AddCell(
+		const FBPDT_Column& Col = Columns[i];
+
+		Row.SetCell(
+			i,
 			FBPDT_Cell(Col.Type, Col.DefaultData.GetData(), Col.ByteSize)
 		);
 	}
@@ -80,6 +82,11 @@ bool FBPDT_Table::AddColumn(
 	int32 DefaultSize
 )
 {
+	if (Name == NAME_None || !DefaultData || DefaultSize <= 0)
+	{
+		return false;
+	}
+
 	if (ResolveColumnIndex(Name) != INDEX_NONE)
 	{
 		return false;
@@ -109,12 +116,18 @@ bool FBPDT_Table::ConvertSerialToExplicit(
 		return false;
 	}
 
-	AddColumn(NewPKColumnName, Type, DefaultData, DefaultSize);
+	if (!AddColumn(NewPKColumnName, Type, DefaultData, DefaultSize))
+	{
+		return false;
+	}
+
 	const int32 PKIndex = ResolveColumnIndex(NewPKColumnName);
+	check(PKIndex != INDEX_NONE);
 
 	for (auto& Pair : Rows)
 	{
 		const FBPDT_PrimaryKey& Key = Pair.Key;
+
 		Pair.Value.SetCell(
 			PKIndex,
 			FBPDT_Cell(Key.Type, Key.Data.GetData(), Key.Data.Num())
@@ -188,6 +201,8 @@ FBPDT_PrimaryKey FBPDT_Table::ParsePKFromString(const FString& PKValue) const
 	}
 
 	const int32 Index = ResolveColumnIndex(PKColumnName);
+	check(Index != INDEX_NONE);
+
 	const FBPDT_Column& Col = Columns[Index];
 
 	if (Col.Type == EBPDT_CellType::Int)
@@ -223,4 +238,30 @@ int32 FBPDT_Table::ResolveColumnIndex(FName ColumnName) const
 int32 FBPDT_Table::GetRowCount() const
 {
 	return Rows.Num();
+}
+
+int32 FBPDT_Table::GetColumnIndex(FName ColumnName) const
+{
+	return ResolveColumnIndex(ColumnName);
+}
+
+const TArray<FBPDT_Column>& FBPDT_Table::GetColumns() const
+{
+	return Columns;
+}
+
+void FBPDT_Table::ForEachRow(
+	TFunctionRef<void(const FBPDT_PrimaryKey&, const FBPDT_Row&)> Func
+) const
+{
+	for (const auto& Pair : Rows)
+	{
+		Func(Pair.Key, Pair.Value);
+	}
+}
+
+const FBPDT_Column& FBPDT_Table::GetColumn(int32 Index) const
+{
+	check(Columns.IsValidIndex(Index));
+	return Columns[Index];
 }
