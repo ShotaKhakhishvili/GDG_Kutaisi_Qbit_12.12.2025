@@ -1,0 +1,21 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "Blueprint Data Tool",
+  "Description": "Data management tool for ue5",
+  "Category": "Tool",
+  "EnabledByDefault": true,
+
+  "Modules": [
+    {
+      "Name": "BPDT_Editor",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ],
+
+  "CanContainContent": true,
+  "IsBetaVersion": false,
+  "Installed": false
+}
