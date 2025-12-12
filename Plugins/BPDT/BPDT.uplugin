@@ -9,6 +9,11 @@
 
   "Modules": [
     {
+      "Name": "BPDT_Runtime",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    },
+    {
       "Name": "BPDT_Editor",
       "Type": "Editor",
       "LoadingPhase": "Default"
