@@ -58,6 +58,14 @@ public:
 		TArray<EBPDT_CellType>& OutColumnTypes
 	);
 
+	UFUNCTION(BlueprintCallable)
+	static bool GetTableRow(
+		const FString& TableName,
+		const FString& PKValue,
+		FBPDT_RowView& OutRow
+	);
+
+
 	//--------------------Adding Columns--------------------
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")

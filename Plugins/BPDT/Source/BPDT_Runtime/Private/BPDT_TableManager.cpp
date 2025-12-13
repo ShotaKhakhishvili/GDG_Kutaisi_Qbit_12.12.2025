@@ -4,6 +4,29 @@
 
 static TMap<FString, FBPDT_Table> G_BPDT_Tables;
 
+static bool ParseBool(const FString& Str, bool& OutValue)
+{
+	if (Str.Equals(TEXT("true"), ESearchCase::IgnoreCase) || Str == TEXT("1"))
+	{
+		OutValue = true;
+		return true;
+	}
+	if (Str.Equals(TEXT("false"), ESearchCase::IgnoreCase) || Str == TEXT("0"))
+	{
+		OutValue = false;
+		return true;
+	}
+	return false;
+}
+
+static bool ParseVector3(const FString& Str, FVector& OutValue)
+{
+	FString Clean = Str;
+	Clean.ReplaceInline(TEXT(","), TEXT(" "));
+	return OutValue.InitFromString(Clean);
+}
+
+
 bool UBPDT_TableManager::IsValidBPDTIdentifier(const FString& Name)
 {
 	if (Name.IsEmpty())
@@ -585,34 +608,46 @@ bool UBPDT_TableManager::GetIntColumnData(
 
 	const FBPDT_Table* Table = GetTables().Find(TableName);
 	if (!Table)
-	{
 		return false;
+
+	const bool bIsPK = (ColumnName == Table->PKColumnName);
+	int32 ColIndex = INDEX_NONE;
+
+	if (!bIsPK)
+	{
+		ColIndex = Table->GetColumnIndex(ColumnName);
+		if (ColIndex == INDEX_NONE)
+			return false;
+
+		if (Table->GetColumn(ColIndex).Type != EBPDT_CellType::Int)
+			return false;
 	}
 
-	const int32 ColIndex = Table->GetColumnIndex(ColumnName);
-	if (ColIndex == INDEX_NONE)
-	{
-		return false;
-	}
-
-	const FBPDT_Column& Col = Table->GetColumn(ColIndex);
-	if (Col.Type != EBPDT_CellType::Int)
-	{
-		return false;
-	}
+	bool bAllValid = true;
 
 	Table->ForEachRow(
-		[&](const FBPDT_PrimaryKey&, const FBPDT_Row& Row)
+		[&](const FBPDT_PrimaryKey& PK, const FBPDT_Row& Row)
 		{
-			const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
-			OutValues.Add(
-				Cell.bIsNull ? 0 : Cell.AsInt()
-			);
+			int32 Value = 0;
+
+			if (bIsPK)
+			{
+				if (!LexTryParseString(Value, *PK.ToString()))
+					bAllValid = false;
+			}
+			else
+			{
+				const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
+				Value = Cell.bIsNull ? 0 : Cell.AsInt();
+			}
+
+			OutValues.Add(Value);
 		}
 	);
 
-	return true;
+	return bAllValid;
 }
+
 
 bool UBPDT_TableManager::GetFloatColumnData(
 	const FString& TableName,
@@ -624,33 +659,46 @@ bool UBPDT_TableManager::GetFloatColumnData(
 
 	const FBPDT_Table* Table = GetTables().Find(TableName);
 	if (!Table)
-	{
 		return false;
+
+	const bool bIsPK = (ColumnName == Table->PKColumnName);
+	int32 ColIndex = INDEX_NONE;
+
+	if (!bIsPK)
+	{
+		ColIndex = Table->GetColumnIndex(ColumnName);
+		if (ColIndex == INDEX_NONE)
+			return false;
+
+		if (Table->GetColumn(ColIndex).Type != EBPDT_CellType::Float)
+			return false;
 	}
 
-	const int32 ColIndex = Table->GetColumnIndex(ColumnName);
-	if (ColIndex == INDEX_NONE)
-	{
-		return false;
-	}
-
-	if (Table->GetColumn(ColIndex).Type != EBPDT_CellType::Float)
-	{
-		return false;
-	}
+	bool bAllValid = true;
 
 	Table->ForEachRow(
-		[&](const FBPDT_PrimaryKey&, const FBPDT_Row& Row)
+		[&](const FBPDT_PrimaryKey& PK, const FBPDT_Row& Row)
 		{
-			const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
-			OutValues.Add(
-				Cell.bIsNull ? 0.f : Cell.AsFloat()
-			);
+			float Value = 0.f;
+
+			if (bIsPK)
+			{
+				if (!LexTryParseString(Value, *PK.ToString()))
+					bAllValid = false;
+			}
+			else
+			{
+				const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
+				Value = Cell.bIsNull ? 0.f : Cell.AsFloat();
+			}
+
+			OutValues.Add(Value);
 		}
 	);
 
-	return true;
+	return bAllValid;
 }
+
 
 bool UBPDT_TableManager::GetBoolColumnData(
 	const FString& TableName,
@@ -662,33 +710,46 @@ bool UBPDT_TableManager::GetBoolColumnData(
 
 	const FBPDT_Table* Table = GetTables().Find(TableName);
 	if (!Table)
-	{
 		return false;
+
+	const bool bIsPK = (ColumnName == Table->PKColumnName);
+	int32 ColIndex = INDEX_NONE;
+
+	if (!bIsPK)
+	{
+		ColIndex = Table->GetColumnIndex(ColumnName);
+		if (ColIndex == INDEX_NONE)
+			return false;
+
+		if (Table->GetColumn(ColIndex).Type != EBPDT_CellType::Bool)
+			return false;
 	}
 
-	const int32 ColIndex = Table->GetColumnIndex(ColumnName);
-	if (ColIndex == INDEX_NONE)
-	{
-		return false;
-	}
-
-	if (Table->GetColumn(ColIndex).Type != EBPDT_CellType::Bool)
-	{
-		return false;
-	}
+	bool bAllValid = true;
 
 	Table->ForEachRow(
-		[&](const FBPDT_PrimaryKey&, const FBPDT_Row& Row)
+		[&](const FBPDT_PrimaryKey& PK, const FBPDT_Row& Row)
 		{
-			const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
-			OutValues.Add(
-				Cell.bIsNull ? false : Cell.AsBool()
-			);
+			bool Value = false;
+
+			if (bIsPK)
+			{
+				if (!ParseBool(PK.ToString(), Value))
+					bAllValid = false;
+			}
+			else
+			{
+				const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
+				Value = Cell.bIsNull ? false : Cell.AsBool();
+			}
+
+			OutValues.Add(Value);
 		}
 	);
 
-	return true;
+	return bAllValid;
 }
+
 
 bool UBPDT_TableManager::GetStringColumnData(
 	const FString& TableName,
@@ -700,33 +761,39 @@ bool UBPDT_TableManager::GetStringColumnData(
 
 	const FBPDT_Table* Table = GetTables().Find(TableName);
 	if (!Table)
-	{
 		return false;
-	}
 
-	const int32 ColIndex = Table->GetColumnIndex(ColumnName);
-	if (ColIndex == INDEX_NONE)
-	{
-		return false;
-	}
+	const bool bIsPK = (ColumnName == Table->PKColumnName);
+	int32 ColIndex = INDEX_NONE;
 
-	if (Table->GetColumn(ColIndex).Type != EBPDT_CellType::String)
+	if (!bIsPK)
 	{
-		return false;
+		ColIndex = Table->GetColumnIndex(ColumnName);
+		if (ColIndex == INDEX_NONE)
+			return false;
+
+		if (Table->GetColumn(ColIndex).Type != EBPDT_CellType::String)
+			return false;
 	}
 
 	Table->ForEachRow(
-		[&](const FBPDT_PrimaryKey&, const FBPDT_Row& Row)
+		[&](const FBPDT_PrimaryKey& PK, const FBPDT_Row& Row)
 		{
-			const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
-			OutValues.Add(
-				Cell.bIsNull ? FString() : Cell.AsString()
-			);
+			if (bIsPK)
+			{
+				OutValues.Add(PK.ToString());
+			}
+			else
+			{
+				const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
+				OutValues.Add(Cell.bIsNull ? FString() : Cell.AsString());
+			}
 		}
 	);
 
 	return true;
 }
+
 
 bool UBPDT_TableManager::GetVector3ColumnData(
 	const FString& TableName,
@@ -1005,6 +1072,32 @@ bool UBPDT_TableManager::GetPKInfo(
 		const FBPDT_Column& Col = Table->GetColumn(PKIndex);
 		OutPKColumnName = Col.Name;
 		OutPKType = Col.Type;
+	}
+
+	return true;
+}
+
+bool UBPDT_TableManager::GetTableRow(
+	const FString& TableName,
+	const FString& PKValue,
+	FBPDT_RowView& OutRow
+)
+{
+	const FBPDT_Table* Table = GetTables().Find(TableName);
+	if (!Table)
+		return false;
+
+	const FBPDT_Row* Row = Table->FindRow(PKValue);
+	if (!Row)
+		return false;
+
+	OutRow.Cells = Row->Cells;
+	OutRow.ColumnIndexMap.Empty();
+
+	const TArray<FBPDT_Column>& Columns = Table->GetColumns();
+	for (int32 i = 0; i < Columns.Num(); ++i)
+	{
+		OutRow.ColumnIndexMap.Add(Columns[i].Name, i);
 	}
 
 	return true;

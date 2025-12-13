@@ -31,6 +31,8 @@ private:
 	TMap<FBPDT_PrimaryKey, FBPDT_Row> Rows;
 
 public:
+	FORCEINLINE FName GetPKColumnName() const { return PKColumnName; }
+
 	FBPDT_Table();
 
 	/* Init */

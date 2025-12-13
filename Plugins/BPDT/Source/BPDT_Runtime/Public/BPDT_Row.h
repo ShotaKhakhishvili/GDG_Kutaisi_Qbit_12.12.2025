@@ -60,3 +60,18 @@ public:
 		Cells.RemoveAt(Index);
 	}
 };
+
+USTRUCT(BlueprintType)
+struct FBPDT_RowView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<FBPDT_Cell> Cells;
+
+	// ColumnName -> Cell index
+	UPROPERTY()
+	TMap<FName, int32> ColumnIndexMap;
+};
+
+
