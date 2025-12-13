@@ -1,4 +1,6 @@
 #include "BPDT_Table.h"
+#include "BPDT_TableManager.h"
+
 
 FBPDT_Table::FBPDT_Table()
 {
@@ -128,7 +130,7 @@ bool FBPDT_Table::AddColumn(
 {
 	const FString NameStr = Name.ToString();
 
-	if (!IsValidBPDTIdentifier(NameStr))
+	if (!UBPDT_TableManager::IsValidBPDTIdentifier(NameStr))
 	{
 		return false;
 	}

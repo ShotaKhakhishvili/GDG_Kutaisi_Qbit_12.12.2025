@@ -1,6 +1,32 @@
 #include "BPDT_TableManager.h"
+#include "BPDT_FileManager.h"
+
 
 static TMap<FString, FBPDT_Table> G_BPDT_Tables;
+
+bool UBPDT_TableManager::IsValidBPDTIdentifier(const FString& Name)
+{
+	if (Name.IsEmpty())
+	{
+		return false;
+	}
+
+	for (TCHAR C : Name)
+	{
+		const bool bValid =
+			(C >= 'A' && C <= 'Z') ||
+			(C >= 'a' && C <= 'z') ||
+			(C >= '0' && C <= '9') ||
+			(C == '_');
+
+		if (!bValid)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
 
 TMap<FString, FBPDT_Table>& UBPDT_TableManager::GetTables()
 {
@@ -9,7 +35,7 @@ TMap<FString, FBPDT_Table>& UBPDT_TableManager::GetTables()
 
 bool UBPDT_TableManager::CreateTable(const FString& TableName)
 {
-	if (!IsValidBPDTIdentifier(TableName))
+	if (!UBPDT_TableManager::IsValidBPDTIdentifier(TableName))
 	{
 		UE_LOG(
 			LogTemp,

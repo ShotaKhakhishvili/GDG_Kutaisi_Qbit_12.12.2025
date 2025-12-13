@@ -11,6 +11,7 @@ class BPDT_RUNTIME_API UBPDT_TableManager : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
+	static bool IsValidBPDTIdentifier(const FString& Name);
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool CreateTable(const FString& TableName);
