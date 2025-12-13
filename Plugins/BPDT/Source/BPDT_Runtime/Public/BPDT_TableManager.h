@@ -80,6 +80,12 @@ public:
 		TArray<FString>& OutPKValues
 	);
 
+	UFUNCTION(BlueprintCallable, Category = "BPDT|PK")
+	static bool ChangePrimaryKey(
+		const FString& TableName,
+		const FString& OldPKValue,
+		const FString& NewPKValue
+	);
 
 	//--------------------Adding Columns--------------------
 

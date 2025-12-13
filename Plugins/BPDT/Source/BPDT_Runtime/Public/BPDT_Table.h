@@ -59,6 +59,10 @@ public:
 		const void* DefaultData,
 		int32 DefaultSize
 	);
+	bool ChangePrimaryKey(
+		const FString& OldPKValue,
+		const FString& NewPKValue
+	);
 
 	bool ConvertExplicitToSerial();
 	int32 GetRowCount() const;

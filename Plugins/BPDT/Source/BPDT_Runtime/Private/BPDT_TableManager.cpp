@@ -1173,3 +1173,19 @@ bool UBPDT_TableManager::GetAllRowPKValues(
 
 	return true;
 }
+
+bool UBPDT_TableManager::ChangePrimaryKey(
+	const FString& TableName,
+	const FString& OldPKValue,
+	const FString& NewPKValue
+)
+{
+	FBPDT_Table* Table = GetTables().Find(TableName);
+	if (!Table)
+	{
+		return false;
+	}
+
+	return Table->ChangePrimaryKey(OldPKValue, NewPKValue);
+}
+

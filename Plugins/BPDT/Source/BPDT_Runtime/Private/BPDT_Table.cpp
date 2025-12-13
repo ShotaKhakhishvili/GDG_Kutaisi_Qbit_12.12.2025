@@ -554,3 +554,76 @@ const FBPDT_Row* FBPDT_Table::FindRow(const FString& PKValue) const
 	}
 	return Rows.Find(Key);
 }
+
+bool FBPDT_Table::ChangePrimaryKey(
+	const FString& OldPKValue,
+	const FString& NewPKValue
+)
+{
+	// ---- sanitize input (UI text boxes often add whitespace) ----
+	const FString OldS = OldPKValue.TrimStartAndEnd();
+	const FString NewS = NewPKValue.TrimStartAndEnd();
+
+	// No-op change
+	if (OldS == NewS)
+	{
+		return true;
+	}
+
+	// ---- SERIAL PK ONLY ----
+	if (PKMode != EBPDT_PrimaryKeyMode::Serial)
+	{
+		return false;
+	}
+
+	// ---- parse OLD PK ----
+	int32 OldID = 0;
+	if (!LexTryParseString(OldID, *OldS))
+	{
+		return false;
+	}
+
+	FBPDT_PrimaryKey OldKey = MakeSerialKey(OldID);
+
+	// ---- find existing row ----
+	FBPDT_Row* ExistingRow = Rows.Find(OldKey);
+	if (!ExistingRow)
+	{
+		return false;
+	}
+
+	// ---- parse NEW PK ----
+	int32 NewID = 0;
+	if (!LexTryParseString(NewID, *NewS))
+	{
+		return false;
+	}
+
+	FBPDT_PrimaryKey NewKey = MakeSerialKey(NewID);
+
+	// ---- enforce uniqueness ----
+	if (Rows.Contains(NewKey))
+	{
+		return false;
+	}
+
+	// ---- move row out of map ----
+	FBPDT_Row MovedRow = MoveTemp(*ExistingRow);
+	Rows.Remove(OldKey);
+
+	// ---- update PK cell inside row (serial PK is ALWAYS column 0) ----
+	MovedRow.SetCell(
+		0,
+		FBPDT_Cell(EBPDT_CellType::Int, &NewID, sizeof(int32))
+	);
+
+	// ---- reinsert under new key ----
+	Rows.Add(NewKey, MoveTemp(MovedRow));
+
+	// ---- fix serial counter ----
+	NextSerialID = FMath::Max(NextSerialID, NewID + 1);
+
+	return true;
+}
+
+
