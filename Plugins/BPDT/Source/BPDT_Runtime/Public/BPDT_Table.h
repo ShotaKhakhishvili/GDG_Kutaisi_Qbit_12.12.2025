@@ -34,7 +34,7 @@ public:
 	FBPDT_Table();
 
 	/* Init */
-	void InitSerial(const TArray<FBPDT_Column>& InColumns);
+	void InitSerial();
 
 	/* Row ops */
 	FBPDT_Row& InsertRowAsDefault();
@@ -65,7 +65,6 @@ public:
 	const FBPDT_Column& GetColumn(int32 Index) const;
 
 	void ForEachRow(TFunctionRef<void(const FBPDT_PrimaryKey&, const FBPDT_Row&)> Func) const;
-
 
 private:
 	FBPDT_PrimaryKey MakeSerialKey(int32 Value) const;

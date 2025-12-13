@@ -7,8 +7,6 @@ IMPLEMENT_MODULE(FBPDT_RuntimeModule, BPDT_Runtime)
 void FBPDT_RuntimeModule::StartupModule()
 {
     UE_LOG(LogTemp, Log, TEXT("BPDT Runtime Module Loaded")); 
-    UBPDT_FileManager::LoadFile(TEXT("test.txt"));
-
 }
 
 void FBPDT_RuntimeModule::ShutdownModule()

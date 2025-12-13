@@ -1,25 +1,41 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Kismet/BlueprintFunctionLibrary.h"
-#include "BPDT_FileManager.generated.h"
+#include "BPDT_Table.h"
 
-UCLASS()
-class BPDT_RUNTIME_API UBPDT_FileManager : public UBlueprintFunctionLibrary
+class BPDT_RUNTIME_API FBPDT_FileManager
 {
-    GENERATED_BODY()
-
 public:
+	static bool WriteTable(
+		const FString& TableName,
+		const FBPDT_Table& Table
+	);
+	static bool ReadTable(
+		const FString& TableName,
+		FBPDT_Table& OutTable
+	);
 
-    /** Load file into static memory */
-    static void LoadFile(const FString& FileName = TEXT("test.txt"));
-
-    /** Returns data loaded from file */
-    UFUNCTION(BlueprintCallable, Category = "BPDT")
-    static void PrintLoadedData();
-
+	static bool IsTableInRegistry(const FString& TableName);
+	static bool ReadRegistry(TArray<FString>& OutTableNames);
 private:
+	static FString GetSaveDirectory();
+	static bool AddTableToRegistry(const FString& TableName);
+	static FString GetRegistryPath();
 
-    /** The loaded text from the file */
-    static FString LoadedData;
+	static bool WriteSchemeFile(
+		const FString& Path,
+		const FString& TableName,
+		const FBPDT_Table& Table
+	);
+
+	static bool WriteDataFile(
+		const FString& Path,
+		const FBPDT_Table& Table
+	);
+
+	static void WriteNullMask(
+		FArchive& Ar,
+		const FBPDT_Row& Row,
+		int32 ColumnCount
+	);
 };

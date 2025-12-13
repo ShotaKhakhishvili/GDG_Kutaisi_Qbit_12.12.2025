@@ -4,46 +4,90 @@ FBPDT_Table::FBPDT_Table()
 {
 }
 
-void FBPDT_Table::InitSerial(const TArray<FBPDT_Column>& InColumns)
+void FBPDT_Table::InitSerial()
 {
-	// Allow empty table schema (needed for editor utilities / "Create Empty Table")
 	PKMode = EBPDT_PrimaryKeyMode::Serial;
-	PKColumnName = NAME_None;
-	Columns = InColumns;
+	PKColumnName = FName(TEXT("PK"));
 	Rows.Empty();
 	NextSerialID = 1;
+
+	Columns.Empty();
+	Columns.Emplace(
+		PKColumnName,
+		EBPDT_CellType::Int,
+		&NextSerialID,      // default irrelevant for PK
+		sizeof(int32)
+	);
 }
 
 FBPDT_Row& FBPDT_Table::InsertRowAsDefault()
 {
-	check(PKMode == EBPDT_PrimaryKeyMode::Serial);
-
 	FBPDT_Row Row(Columns.Num());
 
-	for (int32 i = 0; i < Columns.Num(); ++i)
+	FBPDT_PrimaryKey Key;
+
+	if (PKMode == EBPDT_PrimaryKeyMode::Serial)
+	{
+		// Generate serial PK
+		const int32 NewID = NextSerialID++;
+
+		// Write PK into cell[0]
+		Row.SetCell(
+			0,
+			FBPDT_Cell(EBPDT_CellType::Int, &NewID, sizeof(int32))
+		);
+
+		Key = MakeSerialKey(NewID);
+	}
+	else
+	{
+		// Explicit PK: default value goes into cell[0]
+		const FBPDT_Column& PKCol = Columns[0];
+		Row.SetCell(
+			0,
+			FBPDT_Cell(PKCol.Type, PKCol.DefaultData.GetData(), PKCol.ByteSize)
+		);
+
+		Key = MakeExplicitKeyFromRow(Row);
+	}
+
+	// Fill remaining cells with defaults
+	for (int32 i = 1; i < Columns.Num(); ++i)
 	{
 		const FBPDT_Column& Col = Columns[i];
-
 		Row.SetCell(
 			i,
 			FBPDT_Cell(Col.Type, Col.DefaultData.GetData(), Col.ByteSize)
 		);
 	}
 
-	const int32 NewID = NextSerialID++;
-	FBPDT_PrimaryKey Key = MakeSerialKey(NewID);
-
+	check(!Rows.Contains(Key));
 	return Rows.Add(Key, Row);
 }
 
-bool FBPDT_Table::InsertRow(const FBPDT_Row& Row)
+bool FBPDT_Table::InsertRow(const FBPDT_Row& InRow)
 {
-	check(Row.Num() == Columns.Num());
+	check(InRow.Num() == Columns.Num());
 
-	FBPDT_PrimaryKey Key =
-		(PKMode == EBPDT_PrimaryKeyMode::Serial)
-		? MakeSerialKey(NextSerialID++)
-		: MakeExplicitKeyFromRow(Row);
+	FBPDT_Row Row = InRow; // make a mutable copy
+	FBPDT_PrimaryKey Key;
+
+	if (PKMode == EBPDT_PrimaryKeyMode::Serial)
+	{
+		const int32 NewID = NextSerialID++;
+
+		// Override PK cell
+		Row.SetCell(
+			0,
+			FBPDT_Cell(EBPDT_CellType::Int, &NewID, sizeof(int32))
+		);
+
+		Key = MakeSerialKey(NewID);
+	}
+	else
+	{
+		Key = MakeExplicitKeyFromRow(Row);
+	}
 
 	check(!Rows.Contains(Key));
 	Rows.Add(Key, Row);
@@ -82,7 +126,9 @@ bool FBPDT_Table::AddColumn(
 	int32 DefaultSize
 )
 {
-	if (Name == NAME_None || !DefaultData || DefaultSize <= 0)
+	const FString NameStr = Name.ToString();
+
+	if (!IsValidBPDTIdentifier(NameStr))
 	{
 		return false;
 	}
@@ -103,6 +149,7 @@ bool FBPDT_Table::AddColumn(
 
 	return true;
 }
+
 
 bool FBPDT_Table::ConvertSerialToExplicit(
 	FName NewPKColumnName,

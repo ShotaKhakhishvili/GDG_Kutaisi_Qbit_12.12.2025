@@ -11,13 +11,9 @@ class BPDT_RUNTIME_API UBPDT_TableManager : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
-	/* ---- Table lifecycle ---- */
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
-	static bool CreateEmptyTable(
-		const FString& TableName,
-		bool bSerialPrimaryKey
-	);
+	static bool CreateTable(const FString& TableName);
 
 	UFUNCTION(BlueprintCallable, Category="BPDT|Table")
 	static bool RemoveTable(const FString& TableName);
@@ -32,6 +28,23 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BPDT|Debug")
 	static void PrintTable(const FString& TableName);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Debug")
+	void PrintAllTables();
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Row")
+	static bool AddDefaultRow(const FString& TableName);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Save")
+	static bool SaveTable(const FString& TableName);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Save")
+	static bool SaveAllTables();
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Load")
+	static bool LoadTable(const FString& TableName);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Load")
+	static bool LoadAllTables();
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool AddIntColumn(
@@ -60,9 +73,6 @@ public:
 		FName ColumnName,
 		FVector DefaultValue
 	);
-
-	UFUNCTION(BlueprintCallable, Category = "BPDT|Row")
-	static bool AddDefaultRow(const FString& TableName);
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Cell")
 	static bool SetCellInt(
