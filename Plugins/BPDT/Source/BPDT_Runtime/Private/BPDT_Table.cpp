@@ -96,12 +96,6 @@ bool FBPDT_Table::InsertRow(const FBPDT_Row& InRow)
 	return true;
 }
 
-const FBPDT_Row* FBPDT_Table::FindRow(const FString& PKValue) const
-{
-	FBPDT_PrimaryKey Key = ParsePKFromString(PKValue);
-	return Rows.Find(Key);
-}
-
 const FBPDT_Cell* FBPDT_Table::FindCellOnRow(const FString& PKValue, FName ColumnName) const
 {
 	const FBPDT_Row* Row = FindRow(PKValue);
@@ -165,28 +159,69 @@ bool FBPDT_Table::ConvertSerialToExplicit(
 		return false;
 	}
 
+	// 1) Add the new PK column.
 	if (!AddColumn(NewPKColumnName, Type, DefaultData, DefaultSize))
 	{
 		return false;
 	}
 
-	const int32 PKIndex = ResolveColumnIndex(NewPKColumnName);
-	check(PKIndex != INDEX_NONE);
+	const int32 NewPKIndex = ResolveColumnIndex(NewPKColumnName);
+	if (NewPKIndex == INDEX_NONE)
+	{
+		return false;
+	}
 
+	// 2) Write the old serial PK into that new column for all rows.
 	for (auto& Pair : Rows)
 	{
-		const FBPDT_PrimaryKey& Key = Pair.Key;
+		const FBPDT_PrimaryKey& OldKey = Pair.Key;
+
+		// OldKey is Int in serial mode; enforce here.
+		if (OldKey.Type != EBPDT_CellType::Int || OldKey.Data.Num() != sizeof(int32))
+		{
+			return false;
+		}
 
 		Pair.Value.SetCell(
-			PKIndex,
-			FBPDT_Cell(Key.Type, Key.Data.GetData(), Key.Data.Num())
+			NewPKIndex,
+			FBPDT_Cell(EBPDT_CellType::Int, OldKey.Data.GetData(), OldKey.Data.Num())
 		);
 	}
 
+	// 3) Rebuild map using explicit keys computed from rows.
+	TMap<FBPDT_PrimaryKey, FBPDT_Row> NewRows;
+	NewRows.Reserve(Rows.Num());
+
+	// Temporarily set PK metadata so MakeExplicitKeyFromRow uses the right column.
+	const EBPDT_PrimaryKeyMode OldMode = PKMode;
+	const FName OldName = PKColumnName;
+
 	PKMode = EBPDT_PrimaryKeyMode::Explicit;
 	PKColumnName = NewPKColumnName;
+
+	for (const auto& Pair : Rows)
+	{
+		const FBPDT_Row& Row = Pair.Value;
+
+		FBPDT_PrimaryKey NewKey = MakeExplicitKeyFromRow(Row);
+
+		// Uniqueness validation (crucial!)
+		if (NewRows.Contains(NewKey))
+		{
+			// rollback metadata, leave table unchanged (except the added column; if you want full rollback,
+			// you'd also remove the column, but you said you're okay not changing things now)
+			PKMode = OldMode;
+			PKColumnName = OldName;
+			return false;
+		}
+
+		NewRows.Add(NewKey, Row);
+	}
+
+	Rows = MoveTemp(NewRows);
 	return true;
 }
+
 
 bool FBPDT_Table::ConvertExplicitToSerial()
 {
@@ -196,30 +231,65 @@ bool FBPDT_Table::ConvertExplicitToSerial()
 	}
 
 	const int32 PKIndex = ResolveColumnIndex(PKColumnName);
-	check(PKIndex != INDEX_NONE);
+	if (PKIndex == INDEX_NONE)
+	{
+		return false;
+	}
 
+	// 1) Remove PK column from rows and schema.
 	for (auto& Pair : Rows)
 	{
 		Pair.Value.RemoveCell(PKIndex);
 	}
-
 	Columns.RemoveAt(PKIndex);
 
+	// 2) Ensure serial PK column exists at index 0.
+	// If your design requires PK always at [0] and named "PK", restore it.
+	// (You already do this in InitSerial normally, but here we’re converting in-place.)
+	PKMode = EBPDT_PrimaryKeyMode::Serial;
+	PKColumnName = FName(TEXT("PK"));
+
+	// If column 0 isn't the serial PK column right now, you should enforce it.
+	// Minimal version: assume column 0 is still the old serial PK column slot.
+	// Better: explicitly set/replace column 0 as int PK.
+	if (Columns.Num() == 0 || Columns[0].Type != EBPDT_CellType::Int)
+	{
+		Columns.Insert(
+			FBPDT_Column(PKColumnName, EBPDT_CellType::Int, nullptr, sizeof(int32)),
+			0
+		);
+
+		// Insert a placeholder PK cell into each row at index 0
+		for (auto& Pair : Rows)
+		{
+			Pair.Value.InsertCell(0, FBPDT_Cell::MakeNull(EBPDT_CellType::Int));
+		}
+	}
+
+	// 3) Rebuild map with new IDs and write them into cell[0].
 	TMap<FBPDT_PrimaryKey, FBPDT_Row> NewRows;
+	NewRows.Reserve(Rows.Num());
+
 	int32 NewID = 1;
 
 	for (auto& Pair : Rows)
 	{
-		NewRows.Add(MakeSerialKey(NewID++), Pair.Value);
+		FBPDT_Row Row = Pair.Value;
+
+		Row.SetCell(
+			0,
+			FBPDT_Cell(EBPDT_CellType::Int, &NewID, sizeof(int32))
+		);
+
+		NewRows.Add(MakeSerialKey(NewID), MoveTemp(Row));
+		++NewID;
 	}
 
 	Rows = MoveTemp(NewRows);
-	PKMode = EBPDT_PrimaryKeyMode::Serial;
-	PKColumnName = NAME_None;
 	NextSerialID = NewID;
-
 	return true;
 }
+
 
 /* ---------------- Internals ---------------- */
 
@@ -313,4 +383,174 @@ const FBPDT_Column& FBPDT_Table::GetColumn(int32 Index) const
 {
 	check(Columns.IsValidIndex(Index));
 	return Columns[Index];
+}
+
+int32 FBPDT_Table::GetPKColumnIndex() const
+{
+	// In serial mode PK is always column 0 in your current design.
+	// In explicit mode: PKColumnName tells where PK is.
+	if (PKMode == EBPDT_PrimaryKeyMode::Serial)
+	{
+		return 0;
+	}
+	return ResolveColumnIndex(PKColumnName);
+}
+
+EBPDT_CellType FBPDT_Table::GetPKType() const
+{
+	const int32 PKIndex = GetPKColumnIndex();
+	if (PKIndex == INDEX_NONE)
+	{
+		return EBPDT_CellType::None;
+	}
+	return Columns[PKIndex].Type;
+}
+
+static bool TryParseInt32Strict(const FString& S, int32& Out)
+{
+	// FCString::Atoi returns 0 on failure which is ambiguous.
+	// This rejects "abc" and "12abc".
+	if (S.IsEmpty()) return false;
+
+	TCHAR* End = nullptr;
+	const long V = FCString::Strtoi(*S, &End, 10);
+	if (End == *S || *End != '\0') return false;
+
+	Out = (int32)V;
+	return true;
+}
+
+static bool TryParseFloatStrict(const FString& S, float& Out)
+{
+	if (S.IsEmpty()) return false;
+
+	const double V = FCString::Atod(*S);
+
+	Out = (float)V;
+	return true;
+}
+
+static bool TryParseBoolStrict(const FString& S, bool& Out)
+{
+	if (S.Equals(TEXT("true"), ESearchCase::IgnoreCase)) { Out = true;  return true; }
+	if (S.Equals(TEXT("false"), ESearchCase::IgnoreCase)) { Out = false; return true; }
+	if (S == TEXT("1")) { Out = true;  return true; }
+	if (S == TEXT("0")) { Out = false; return true; }
+	return false;
+}
+
+bool FBPDT_Table::TryParsePKFromString(const FString& In, FBPDT_PrimaryKey& OutKey) const
+{
+	const int32 PKIndex = GetPKColumnIndex();
+	if (PKIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	const EBPDT_CellType PKType = Columns[PKIndex].Type;
+
+	// Serial mode is always int PK in your current design.
+	if (PKMode == EBPDT_PrimaryKeyMode::Serial)
+	{
+		int32 V = 0;
+		if (!TryParseInt32Strict(In, V))
+		{
+			return false;
+		}
+		OutKey = MakeSerialKey(V);
+		return true;
+	}
+
+	// Explicit PK: parse according to PK column type.
+	switch (PKType)
+	{
+	case EBPDT_CellType::Int:
+	{
+		int32 V = 0;
+		if (!TryParseInt32Strict(In, V))
+		{
+			return false;
+		}
+		OutKey = MakeSerialKey(V); // still correct for int PK: same binary layout
+		return true;
+	}
+
+	case EBPDT_CellType::String:
+	{
+		// Canonical string encoding: UTF-8 bytes WITHOUT null terminator.
+		FTCHARToUTF8 Conv(*In);
+		const uint8* Ptr = (const uint8*)Conv.Get();
+		const int32 Len = Conv.Length();
+
+		if (Len <= 0)
+		{
+			return false; // reject empty PK unless you explicitly want it
+		}
+
+		FBPDT_Cell Cell(EBPDT_CellType::String, Ptr, Len);
+		OutKey = FBPDT_PrimaryKey(Cell);
+		return true;
+	}
+
+	case EBPDT_CellType::Float:
+	{
+		float V = 0.f;
+		if (!TryParseFloatStrict(In, V))
+		{
+			return false;
+		}
+		FBPDT_Cell Cell(EBPDT_CellType::Float, &V, sizeof(float));
+		OutKey = FBPDT_PrimaryKey(Cell);
+		return true;
+	}
+
+	case EBPDT_CellType::Bool:
+	{
+		bool V = false;
+		if (!TryParseBoolStrict(In, V))
+		{
+			return false;
+		}
+		FBPDT_Cell Cell(EBPDT_CellType::Bool, &V, sizeof(bool));
+		OutKey = FBPDT_PrimaryKey(Cell);
+		return true;
+	}
+
+	case EBPDT_CellType::Vector3:
+	{
+		// Accept "(X=1,Y=2,Z=3)" or "1 2 3" depending on what you want.
+		// Simple strict: parse "X Y Z"
+		TArray<FString> Parts;
+		In.ParseIntoArrayWS(Parts);
+		if (Parts.Num() != 3)
+		{
+			return false;
+		}
+		float X, Y, Z;
+		if (!TryParseFloatStrict(Parts[0], X) ||
+			!TryParseFloatStrict(Parts[1], Y) ||
+			!TryParseFloatStrict(Parts[2], Z))
+		{
+			return false;
+		}
+
+		const FVector V(X, Y, Z);
+		FBPDT_Cell Cell(EBPDT_CellType::Vector3, &V, sizeof(FVector));
+		OutKey = FBPDT_PrimaryKey(Cell);
+		return true;
+	}
+
+	default:
+		return false;
+	}
+}
+
+const FBPDT_Row* FBPDT_Table::FindRow(const FString& PKValue) const
+{
+	FBPDT_PrimaryKey Key;
+	if (!TryParsePKFromString(PKValue, Key))
+	{
+		return nullptr;
+	}
+	return Rows.Find(Key);
 }

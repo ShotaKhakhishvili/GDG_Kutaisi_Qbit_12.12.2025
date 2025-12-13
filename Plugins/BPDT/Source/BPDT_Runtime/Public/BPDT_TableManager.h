@@ -48,6 +48,9 @@ public:
 	static bool LoadAllTables();
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
+	static void GetAllTableNames(TArray<FString>& OutTableNames);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool AddIntColumn(
 		const FString& TableName,
 		FName ColumnName,
@@ -66,6 +69,13 @@ public:
 		const FString& TableName,
 		FName ColumnName,
 		bool DefaultValue
+	);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
+	static bool AddStringColumn(
+		const FString& TableName,
+		FName ColumnName,
+		const FString& DefaultValue
 	);
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
@@ -105,6 +115,14 @@ public:
 		const FString& PKValue,
 		FName ColumnName,
 		FVector Value
+	);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Cell")
+	static bool SetCellString(
+		const FString& TableName,
+		const FString& PKValue,
+		FName ColumnName,
+		const FString& Value
 	);
 
 private:

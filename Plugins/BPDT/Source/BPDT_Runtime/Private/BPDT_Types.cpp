@@ -61,9 +61,20 @@ FString FBPDT_Cell::AsString() const
 {
 	check(Type == EBPDT_CellType::String && !bIsNull);
 
-	const char* Raw = reinterpret_cast<const char*>(Data.GetData());
-	return FString(UTF8_TO_TCHAR(Raw));
+	if (Data.Num() == 0)
+	{
+		return FString();
+	}
+
+	const ANSICHAR* Raw =
+		reinterpret_cast<const ANSICHAR*>(Data.GetData());
+
+	return FString(
+		UTF8_TO_TCHAR(Raw),
+		Data.Num()
+	);
 }
+
 
 FVector FBPDT_Cell::AsVector3() const
 {

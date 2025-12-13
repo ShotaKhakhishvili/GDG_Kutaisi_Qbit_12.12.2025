@@ -448,3 +448,103 @@ bool UBPDT_TableManager::LoadAllTables()
 
 	return bSuccess;
 }
+
+bool UBPDT_TableManager::AddStringColumn(
+	const FString& TableName,
+	FName ColumnName,
+	const FString& DefaultValue
+)
+{
+	FBPDT_Table* Table = GetTables().Find(TableName);
+	if (!Table)
+	{
+		return false;
+	}
+
+	// Convert FString ? UTF-8 bytes
+	FTCHARToUTF8 Conv(*DefaultValue);
+
+	const int32 ByteSize = Conv.Length(); // no null terminator
+	if (ByteSize <= 0)
+	{
+		// Allow empty strings if you want; otherwise reject
+		return Table->AddColumn(
+			ColumnName,
+			EBPDT_CellType::String,
+			nullptr,
+			0
+		);
+	}
+
+	return Table->AddColumn(
+		ColumnName,
+		EBPDT_CellType::String,
+		Conv.Get(),
+		ByteSize
+	);
+}
+
+bool UBPDT_TableManager::SetCellString(
+	const FString& TableName,
+	const FString& PKValue,
+	FName ColumnName,
+	const FString& Value
+)
+{
+	FBPDT_Table* Table = GetTables().Find(TableName);
+	if (!Table)
+	{
+		return false;
+	}
+
+	const FBPDT_Row* RowConst = Table->FindRow(PKValue);
+	if (!RowConst)
+	{
+		return false;
+	}
+
+	const int32 ColIndex = Table->GetColumnIndex(ColumnName);
+	if (ColIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	const FBPDT_Column& Col = Table->GetColumn(ColIndex);
+	if (Col.Type != EBPDT_CellType::String)
+	{
+		return false;
+	}
+
+	// Convert FString ? UTF-8
+	FTCHARToUTF8 Conv(*Value);
+	const int32 ByteSize = Conv.Length();
+
+	FBPDT_Cell NewCell;
+
+	if (ByteSize > 0)
+	{
+		NewCell = FBPDT_Cell(
+			EBPDT_CellType::String,
+			Conv.Get(),
+			ByteSize
+		);
+	}
+	else
+	{
+		// empty string = non-null but zero-length
+		NewCell.Type = EBPDT_CellType::String;
+		NewCell.bIsNull = false;
+	}
+
+	FBPDT_Row* Row = const_cast<FBPDT_Row*>(RowConst);
+	Row->SetCell(ColIndex, MoveTemp(NewCell));
+
+	return true;
+}
+
+void UBPDT_TableManager::GetAllTableNames(TArray<FString>& OutTableNames)
+{
+	OutTableNames.Reset();
+	GetTables().GetKeys(OutTableNames);
+	OutTableNames.Sort();
+}

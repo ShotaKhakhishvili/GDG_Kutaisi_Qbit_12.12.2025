@@ -61,6 +61,7 @@ public:
 	bool ConvertExplicitToSerial();
 	int32 GetRowCount() const;
 	int32 GetColumnIndex(FName ColumnName) const;
+
 	const TArray<FBPDT_Column>& GetColumns() const;
 	const FBPDT_Column& GetColumn(int32 Index) const;
 
@@ -73,4 +74,7 @@ private:
 
 	int32 ResolveColumnIndex(FName ColumnName) const;
 
+	int32 GetPKColumnIndex() const;
+	EBPDT_CellType GetPKType() const;
+	bool TryParsePKFromString(const FString& In, FBPDT_PrimaryKey& OutKey) const;
 };
