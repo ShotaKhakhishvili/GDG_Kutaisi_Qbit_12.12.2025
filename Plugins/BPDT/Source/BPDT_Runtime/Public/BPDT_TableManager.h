@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "BPDT_Table.h"
+#include "BPDT_TableViewTypes.h"
 #include "BPDT_TableManager.generated.h"
 
 UCLASS()
@@ -51,39 +52,46 @@ public:
 	static void GetAllTableNames(TArray<FString>& OutTableNames);
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
+	static bool GetColumnInfo(
+		const FString& TableName,
+		TArray<FName>& OutColumnNames,
+		TArray<EBPDT_CellType>& OutColumnTypes
+	);
+
+	//--------------------Adding Columns--------------------
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool AddIntColumn(
 		const FString& TableName,
 		FName ColumnName,
 		int32 DefaultValue
 	);
-
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool AddFloatColumn(
 		const FString& TableName,
 		FName ColumnName,
 		float DefaultValue
 	);
-
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool AddBoolColumn(
 		const FString& TableName,
 		FName ColumnName,
 		bool DefaultValue
 	);
-
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool AddStringColumn(
 		const FString& TableName,
 		FName ColumnName,
 		const FString& DefaultValue
 	);
-
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool AddVector3Column(
 		const FString& TableName,
 		FName ColumnName,
 		FVector DefaultValue
 	);
+
+	//--------------------Setting Cell Values--------------------
 
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Cell")
 	static bool SetCellInt(
@@ -92,7 +100,6 @@ public:
 		FName ColumnName,
 		int32 Value
 	);
-
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Cell")
 	static bool SetCellFloat(
 		const FString& TableName,
@@ -100,7 +107,6 @@ public:
 		FName ColumnName,
 		float Value
 	);
-
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Cell")
 	static bool SetCellBool(
 		const FString& TableName,
@@ -108,7 +114,6 @@ public:
 		FName ColumnName,
 		bool Value
 	);
-
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Cell")
 	static bool SetCellVector3(
 		const FString& TableName,
@@ -116,13 +121,94 @@ public:
 		FName ColumnName,
 		FVector Value
 	);
-
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Cell")
 	static bool SetCellString(
 		const FString& TableName,
 		const FString& PKValue,
 		FName ColumnName,
 		const FString& Value
+	);
+
+	//--------------------Getting Column Data--------------------
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetIntColumnData(
+		const FString& TableName,
+		FName ColumnName,
+		TArray<int32>& OutValues
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetFloatColumnData(
+		const FString& TableName,
+		FName ColumnName,
+		TArray<float>& OutValues
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetBoolColumnData(
+		const FString& TableName,
+		FName ColumnName,
+		TArray<bool>& OutValues
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetStringColumnData(
+		const FString& TableName,
+		FName ColumnName,
+		TArray<FString>& OutValues
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetVector3ColumnData(
+		const FString& TableName,
+		FName ColumnName,
+		TArray<FVector>& OutValues
+	);
+
+	//--------------------Gettin Row Default Values--------------------
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetIntColumnDefault(
+		const FString& TableName,
+		FName ColumnName,
+		int32& OutDefaultValue
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetFloatColumnDefault(
+		const FString& TableName,
+		FName ColumnName,
+		float& OutDefaultValue
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetBoolColumnDefault(
+		const FString& TableName,
+		FName ColumnName,
+		bool& OutDefaultValue
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetVector3ColumnDefault(
+		const FString& TableName,
+		FName ColumnName,
+		FVector& OutDefaultValue
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Column")
+	static bool GetStringColumnDefaultAndMaxLength(
+		const FString& TableName,
+		FName ColumnName,
+		FString& OutDefaultValue,
+		int32& OutMaxLength
+	);
+
+	//--------------------Get Primary Key Values--------------------
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|PK")
+	static bool GetPKName(
+		const FString& TableName,
+		FName& OutPKColumnName
+	);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|PK")
+	static bool GetPKInfo(
+		const FString& TableName,
+		FName& OutPKColumnName,
+		EBPDT_CellType& OutPKType,
+		bool& bIsSerial
 	);
 
 private:
