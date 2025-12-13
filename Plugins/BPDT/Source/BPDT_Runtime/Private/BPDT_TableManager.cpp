@@ -268,17 +268,35 @@ bool UBPDT_TableManager::AddVector3Column(
 	);
 }
 
-bool UBPDT_TableManager::AddDefaultRow(const FString& TableName)
+bool UBPDT_TableManager::AddDefaultRow(
+	const FString& TableName,
+	int32& OutPrimaryKey
+)
 {
+	OutPrimaryKey = -1;
+
 	FBPDT_Table* Table = GetTables().Find(TableName);
 	if (!Table)
 	{
 		return false;
 	}
 
+	// This function ONLY applies to serial PK tables
+	if (Table->PKMode != EBPDT_PrimaryKeyMode::Serial)
+	{
+		return false;
+	}
+
+	// Capture the PK that will be used
+	const int32 NewPKValue = Table->NextSerialID;
+
+	// Let the table handle row + PK creation
 	Table->InsertRowAsDefault();
+
+	OutPrimaryKey = NewPKValue;
 	return true;
 }
+
 
 bool UBPDT_TableManager::SetCellInt(
 	const FString& TableName,
@@ -1099,6 +1117,59 @@ bool UBPDT_TableManager::GetTableRow(
 	{
 		OutRow.ColumnIndexMap.Add(Columns[i].Name, i);
 	}
+
+	return true;
+}
+
+void UBPDT_TableManager::GetAllTableSchemas(
+	TArray<FBPDT_TableSchemaView>& OutSchemas
+)
+{
+	OutSchemas.Reset();
+
+	const TMap<FString, FBPDT_Table>& Tables = GetTables();
+
+	for (const auto& Pair : Tables)
+	{
+		const FString& TableName = Pair.Key;
+		const FBPDT_Table& Table = Pair.Value;
+
+		FBPDT_TableSchemaView View;
+		View.TableName = TableName;
+
+		const TArray<FBPDT_Column>& Columns = Table.GetColumns();
+		View.ColumnNames.Reserve(Columns.Num());
+		View.ColumnTypes.Reserve(Columns.Num());
+
+		for (const FBPDT_Column& Col : Columns)
+		{
+			View.ColumnNames.Add(Col.Name);
+			View.ColumnTypes.Add(Col.Type);
+		}
+
+		OutSchemas.Add(MoveTemp(View));
+	}
+}
+
+bool UBPDT_TableManager::GetAllRowPKValues(
+	const FString& TableName,
+	TArray<FString>& OutPKValues
+)
+{
+	OutPKValues.Reset();
+
+	const FBPDT_Table* Table = GetTables().Find(TableName);
+	if (!Table)
+	{
+		return false;
+	}
+
+	Table->ForEachRow(
+		[&](const FBPDT_PrimaryKey& PK, const FBPDT_Row&)
+		{
+			OutPKValues.Add(PK.ToString());
+		}
+	);
 
 	return true;
 }

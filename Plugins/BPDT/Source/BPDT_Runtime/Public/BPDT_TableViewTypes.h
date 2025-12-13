@@ -27,3 +27,18 @@ struct FBPDT_ColumnView
 	UPROPERTY(BlueprintReadOnly)
 	int32 MaxStringLength = 0;
 };
+
+USTRUCT(BlueprintType)
+struct FBPDT_TableSchemaView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	FString TableName;
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<FName> ColumnNames;
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<EBPDT_CellType> ColumnTypes;
+};

@@ -34,8 +34,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Debug")
 	void PrintAllTables();
 
-	UFUNCTION(BlueprintCallable, Category = "BPDT|Row")
-	static bool AddDefaultRow(const FString& TableName);
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
+	static bool AddDefaultRow(
+		const FString& TableName,
+		int32& OutPrimaryKey
+	);
+
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Save")
 	static bool SaveTable(const FString& TableName);
 
@@ -63,6 +67,17 @@ public:
 		const FString& TableName,
 		const FString& PKValue,
 		FBPDT_RowView& OutRow
+	);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Schema")
+	static void GetAllTableSchemas(
+		TArray<FBPDT_TableSchemaView>& OutSchemas
+	);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Row")
+	static bool GetAllRowPKValues(
+		const FString& TableName,
+		TArray<FString>& OutPKValues
 	);
 
 
