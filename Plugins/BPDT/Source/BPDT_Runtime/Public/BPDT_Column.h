@@ -11,12 +11,15 @@ struct FBPDT_Column
 
 public:
 	FName Name;
-
 	EBPDT_CellType Type = EBPDT_CellType::None;
-
 	int32 ByteSize = 0;
-
 	TArray<uint8> DefaultData;
+
+	// ---------- FK METADATA ----------
+	bool bIsForeignKey = false;
+
+	// Referenced table name (PK is implicit)
+	FName ReferencedTableName = NAME_None;
 
 public:
 	FBPDT_Column() = default;
@@ -25,6 +28,9 @@ public:
 		FName InName,
 		EBPDT_CellType InType,
 		const void* InDefaultData,
-		int32 InByteSize
+		int32 InByteSize,
+		bool bInIsForeignKey = false,
+		FName InReferencedTable = NAME_None
 	);
 };
+

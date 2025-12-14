@@ -10,6 +10,8 @@ void FBPDT_RuntimeModule::StartupModule()
 
 	// Load all saved tables on editor / standalone / packaged startup
 	UBPDT_TableManager::LoadAllTables();
+	UBPDT_TableManager::LoadForeignKeys();
+	UBPDT_TableManager::ApplyForeignKeysToTables();
 
 	UE_LOG(LogTemp, Log, TEXT("[BPDT_Runtime] All tables loaded"));
 }

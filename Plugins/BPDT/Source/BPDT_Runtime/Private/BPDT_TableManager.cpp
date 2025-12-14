@@ -3,6 +3,7 @@
 
 
 static TMap<FString, FBPDT_Table> G_BPDT_Tables;
+TArray<FBPDT_ForeignKeyConstraint> UBPDT_TableManager::ForeignKeys;
 
 static bool ParseBool(const FString& Str, bool& OutValue)
 {
@@ -218,7 +219,7 @@ bool UBPDT_TableManager::AddIntColumn(
 	int32 DefaultValue
 )
 {
-	return AddColumn_Typed(
+	return AddColumn_Typed<int32>(
 		TableName,
 		ColumnName,
 		EBPDT_CellType::Int,
@@ -1186,6 +1187,367 @@ bool UBPDT_TableManager::ChangePrimaryKey(
 		return false;
 	}
 
-	return Table->ChangePrimaryKey(OldPKValue, NewPKValue);
+	const bool bChanged =
+		Table->ChangePrimaryKey(OldPKValue, NewPKValue);
+
+	if (!bChanged)
+	{
+		return false;
+	}
+
+	// ---- CASCADE ----
+	CascadePrimaryKeyChange(
+		TableName,
+		OldPKValue,
+		NewPKValue
+	);
+
+	return true;
 }
 
+void UBPDT_TableManager::CascadePrimaryKeyChange(
+	const FString& ReferencedTableName,
+	const FString& OldPKValue,
+	const FString& NewPKValue
+)
+{
+	int32 OldID = 0;
+	int32 NewID = 0;
+
+	if (!LexTryParseString(OldID, *OldPKValue))
+		return;
+
+	if (!LexTryParseString(NewID, *NewPKValue))
+		return;
+
+	struct FCascadeOp
+	{
+		FBPDT_Table* Table;
+		FBPDT_PrimaryKey RowKey;
+		int32 ColumnIndex;
+	};
+
+	TArray<FCascadeOp> Ops;
+	const FName RefTableName(*ReferencedTableName);
+
+	// ---------- PHASE 1: COLLECT ----------
+	for (auto& TablePair : GetTables())
+	{
+		FBPDT_Table& FKTable = TablePair.Value;
+		const TArray<FBPDT_Column>& Columns = FKTable.GetColumns();
+
+		for (int32 ColIndex = 0; ColIndex < Columns.Num(); ++ColIndex)
+		{
+			const FBPDT_Column& Col = Columns[ColIndex];
+
+			if (!Col.bIsForeignKey)
+				continue;
+
+			if (Col.ReferencedTableName != RefTableName)
+				continue;
+
+			// INT FK ONLY (for now)
+			if (Col.Type != EBPDT_CellType::Int)
+				continue;
+
+			FKTable.ForEachRow(
+				[&](const FBPDT_PrimaryKey& RowPK, const FBPDT_Row& Row)
+				{
+					const FBPDT_Cell& Cell = Row.GetCell(ColIndex);
+					if (Cell.bIsNull)
+						return;
+
+					int32 FKValue = 0;
+					FMemory::Memcpy(&FKValue, Cell.Data.GetData(), sizeof(int32));
+
+					if (FKValue == OldID)
+					{
+						Ops.Add({ &FKTable, RowPK, ColIndex });
+					}
+				}
+			);
+		}
+	}
+
+	// ---------- PHASE 2: APPLY ----------
+	for (const FCascadeOp& Op : Ops)
+	{
+		FBPDT_Row* Row = Op.Table->FindRowMutable(Op.RowKey);
+		if (!Row)
+			continue;
+
+		Row->SetCell(
+			Op.ColumnIndex,
+			FBPDT_Cell(EBPDT_CellType::Int, &NewID, sizeof(int32))
+		);
+	}
+}
+
+
+bool UBPDT_TableManager::AddForeignKeyConstraint(
+	const FString& FKTableName,
+	FName FKColumnName,
+	const FString& ReferencedTableName
+)
+{
+	// ---- lookup tables ----
+	FBPDT_Table* FKTable = GetTables().Find(FKTableName);
+	if (!FKTable)
+	{
+		return false;
+	}
+
+	FBPDT_Table* ReferencedTable = GetTables().Find(ReferencedTableName);
+	if (!ReferencedTable)
+	{
+		return false;
+	}
+
+	// ---- column must exist ----
+	const int32 FKColIndex = FKTable->GetColumnIndex(FKColumnName);
+	if (FKColIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	FBPDT_Column& FKColumn =
+		const_cast<FBPDT_Column&>(FKTable->GetColumn(FKColIndex));
+
+	// ---- cannot FK the PK column ----
+	if (FKColumnName == FKTable->GetPKColumnName())
+	{
+		return false;
+	}
+
+	// ---- already an FK? ----
+	if (FKColumn.bIsForeignKey)
+	{
+		return false;
+	}
+
+	// ---- PK info of referenced table ----
+	FName RefPKName;
+	EBPDT_CellType RefPKType;
+	bool bIsSerial;
+
+	if (!GetPKInfo(
+		ReferencedTableName,
+		RefPKName,
+		RefPKType,
+		bIsSerial
+	))
+	{
+		return false;
+	}
+
+	// ---- type compatibility check ----
+	if (FKColumn.Type != RefPKType)
+	{
+		return false;
+	}
+
+	// ---- declare FK constraint ----
+	FKColumn.bIsForeignKey = true;
+	FKColumn.ReferencedTableName = FName(*ReferencedTableName);
+
+	return true;
+}
+
+bool UBPDT_TableManager::IsValidFKConstraintOrdered(
+	const FString& PKTableName,
+	FName PKColumnName,
+	const FString& FKTableName,
+	FName FKColumnName
+)
+{
+	// ---- find tables ----
+	FBPDT_Table* PKTable = GetTables().Find(PKTableName);
+	FBPDT_Table* FKTable = GetTables().Find(FKTableName);
+
+	if (!PKTable || !FKTable)
+	{
+		return false;
+	}
+
+	// ---- PK column must match actual PK column ----
+	if (PKTable->GetPKColumnName() != PKColumnName)
+	{
+		return false;
+	}
+
+	// ---- FK column must exist ----
+	const int32 FKColIndex = FKTable->GetColumnIndex(FKColumnName);
+	if (FKColIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	const FBPDT_Column& FKColumn = FKTable->GetColumn(FKColIndex);
+
+	// ---- must be marked as FK ----
+	if (!FKColumn.bIsForeignKey)
+	{
+		return false;
+	}
+
+	// ---- must reference the PK table ----
+	if (FKColumn.ReferencedTableName != FName(*PKTableName))
+	{
+		return false;
+	}
+
+	// ---- get referenced PK type via public API ----
+	FName OutPKName = NAME_None;
+	EBPDT_CellType OutPKType = EBPDT_CellType::None;
+	bool bIsSerial = false;
+
+	if (!UBPDT_TableManager::GetPKInfo(PKTableName, OutPKName, OutPKType, bIsSerial))
+	{
+		return false;
+	}
+
+	// Optional extra safety: ensure PK column name matches what GetPKInfo says
+	if (OutPKName != PKColumnName)
+	{
+		return false;
+	}
+
+	// ---- type compatibility ----
+	if (FKColumn.Type != OutPKType)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool UBPDT_TableManager::AddExistingForeignKeyConstraint(
+	const FString& FKTable,
+	FName FKColumn,
+	const FString& PKTable,
+	FName PKColumn
+)
+{
+	// Basic validation
+	if (FKTable.IsEmpty() || PKTable.IsEmpty())
+	{
+		return false;
+	}
+
+	if (FKColumn.IsNone() || PKColumn.IsNone())
+	{
+		return false;
+	}
+
+	// Prevent duplicates
+	for (const FBPDT_ForeignKeyConstraint& FK : ForeignKeys)
+	{
+		if (FK.FKTable == FKTable &&
+			FK.FKColumn == FKColumn &&
+			FK.PKTable == PKTable &&
+			FK.PKColumn == PKColumn)
+		{
+			return false;
+		}
+	}
+
+	FBPDT_ForeignKeyConstraint NewFK;
+	NewFK.FKTable  = FKTable;
+	NewFK.FKColumn = FKColumn;
+	NewFK.PKTable  = PKTable;
+	NewFK.PKColumn = PKColumn;
+
+	ForeignKeys.Add(NewFK);
+	return true;
+}
+
+bool UBPDT_TableManager::SaveForeignKeys()
+{
+	const FString Dir = FPaths::ProjectSavedDir() / TEXT("BPDT");
+	IFileManager::Get().MakeDirectory(*Dir, true);
+
+	const FString FilePath = Dir / TEXT("ForeignKeys.txt");
+
+	FString Output;
+
+	for (const FBPDT_ForeignKeyConstraint& FK : ForeignKeys)
+	{
+		Output += FString::Printf(
+			TEXT("%s|%s|%s|%s\n"),
+			*FK.FKTable,
+			*FK.FKColumn.ToString(),
+			*FK.PKTable,
+			*FK.PKColumn.ToString()
+		);
+	}
+
+	return FFileHelper::SaveStringToFile(Output, *FilePath);
+}
+
+bool UBPDT_TableManager::LoadForeignKeys()
+{
+	const FString FilePath =
+		FPaths::ProjectSavedDir() / TEXT("BPDT/ForeignKeys.txt");
+
+	if (!FPaths::FileExists(FilePath))
+	{
+		return true; // No constraints is valid
+	}
+
+	FString Input;
+	if (!FFileHelper::LoadFileToString(Input, *FilePath))
+	{
+		return false;
+	}
+
+	ForeignKeys.Empty();
+
+	TArray<FString> Lines;
+	Input.ParseIntoArrayLines(Lines);
+
+	for (const FString& Line : Lines)
+	{
+		if (Line.IsEmpty())
+		{
+			continue;
+		}
+
+		TArray<FString> Parts;
+		Line.ParseIntoArray(Parts, TEXT("|"), true);
+
+		if (Parts.Num() != 4)
+		{
+			continue; // malformed line
+		}
+
+		FBPDT_ForeignKeyConstraint FK;
+		FK.FKTable  = Parts[0];
+		FK.FKColumn = FName(*Parts[1]);
+		FK.PKTable  = Parts[2];
+		FK.PKColumn = FName(*Parts[3]);
+
+		ForeignKeys.Add(FK);
+	}
+
+	return true;
+}
+
+void UBPDT_TableManager::ApplyForeignKeysToTables()
+{
+	for (const FBPDT_ForeignKeyConstraint& FK : ForeignKeys)
+	{
+		FBPDT_Table* FKTable = GetTables().Find(FK.FKTable);
+		if (!FKTable)
+			continue;
+
+		const int32 ColIndex = FKTable->GetColumnIndex(FK.FKColumn);
+		if (ColIndex == INDEX_NONE)
+			continue;
+
+		FBPDT_Column& Col =
+			const_cast<FBPDT_Column&>(FKTable->GetColumn(ColIndex));
+
+		Col.bIsForeignKey = true;
+		Col.ReferencedTableName = FName(*FK.PKTable);
+	}
+}

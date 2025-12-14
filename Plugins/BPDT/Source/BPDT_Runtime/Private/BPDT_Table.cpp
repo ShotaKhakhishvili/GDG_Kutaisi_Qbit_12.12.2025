@@ -122,25 +122,48 @@ bool FBPDT_Table::AddColumn(
 	int32 DefaultSize
 )
 {
-	const FString NameStr = Name.ToString();
-
-	if (!UBPDT_TableManager::IsValidBPDTIdentifier(NameStr))
+	// ---- basic validation ----
+	if (Name == NAME_None)
 	{
 		return false;
 	}
 
+	if (Type == EBPDT_CellType::None)
+	{
+		return false;
+	}
+
+	// ---- prevent duplicate columns ----
 	if (ResolveColumnIndex(Name) != INDEX_NONE)
 	{
 		return false;
 	}
 
-	Columns.Emplace(Name, Type, DefaultData, DefaultSize);
+	// ---- add column schema ----
+	Columns.Emplace(
+		Name,
+		Type,
+		DefaultData,
+		DefaultSize
+	);
 
+	// ---- extend existing rows ----
 	for (auto& Pair : Rows)
 	{
-		Pair.Value.AddCell(
-			FBPDT_Cell(Type, DefaultData, DefaultSize)
-		);
+		FBPDT_Row& Row = Pair.Value;
+
+		if (DefaultData)
+		{
+			Row.AddCell(
+				FBPDT_Cell(Type, DefaultData, DefaultSize)
+			);
+		}
+		else
+		{
+			Row.AddCell(
+				FBPDT_Cell::MakeNull(Type)
+			);
+		}
 	}
 
 	return true;

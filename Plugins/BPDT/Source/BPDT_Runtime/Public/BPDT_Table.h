@@ -72,6 +72,7 @@ public:
 	const FBPDT_Column& GetColumn(int32 Index) const;
 
 	void ForEachRow(TFunctionRef<void(const FBPDT_PrimaryKey&, const FBPDT_Row&)> Func) const;
+	FBPDT_Row* FindRowMutable(const FBPDT_PrimaryKey& PK){return Rows.Find(PK);}
 
 private:
 	FBPDT_PrimaryKey MakeSerialKey(int32 Value) const;

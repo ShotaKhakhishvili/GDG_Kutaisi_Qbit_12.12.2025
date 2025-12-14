@@ -4,6 +4,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "BPDT_Table.h"
 #include "BPDT_TableViewTypes.h"
+#include "BPDT_ForeignKeyConstraint.h"
 #include "BPDT_TableManager.generated.h"
 
 UCLASS()
@@ -95,6 +96,7 @@ public:
 		FName ColumnName,
 		int32 DefaultValue
 	);
+
 	UFUNCTION(BlueprintCallable, Category = "BPDT|Table")
 	static bool AddFloatColumn(
 		const FString& TableName,
@@ -240,8 +242,41 @@ public:
 		bool& bIsSerial
 	);
 
+	//--------------------Foreign Key Constraints--------------------
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Schema")
+	static bool AddForeignKeyConstraint(
+		const FString& FKTableName,
+		FName FKColumnName,
+		const FString& ReferencedTableName
+	);
+
+	UFUNCTION(BlueprintCallable, Category = "BPDT|Schema")
+	static bool IsValidFKConstraintOrdered(
+		const FString& PKTableName,
+		FName PKColumnName,
+		const FString& FKTableName,
+		FName FKColumnName
+	);
+
+	UFUNCTION(BlueprintCallable, Category="BPDT|FK")
+	static bool AddExistingForeignKeyConstraint(
+		const FString& FKTable,
+		FName FKColumn,
+		const FString& PKTable,
+		FName PKColumn
+	);
+
+	UFUNCTION(BlueprintCallable, Category="BPDT|FK")
+	static bool SaveForeignKeys();
+
+	UFUNCTION(BlueprintCallable, Category="BPDT|FK")
+	static bool LoadForeignKeys();
+	static void ApplyForeignKeysToTables();
+
 private:
 	static TMap<FString, FBPDT_Table>& GetTables();
+	static TArray<FBPDT_ForeignKeyConstraint> ForeignKeys;
 
 	template<typename T>
 	static bool AddColumn_Typed(
@@ -260,9 +295,13 @@ private:
 		const T& Value
 	);
 
+	static void CascadePrimaryKeyChange(
+		const FString& ReferencedTableName,
+		const FString& OldPKValue,
+		const FString& NewPKValue
+	);
+
 };
-
-
 
 template<typename T>
 inline bool UBPDT_TableManager::AddColumn_Typed(const FString& TableName, FName ColumnName, EBPDT_CellType ExpectedType, const T& DefaultValue)
