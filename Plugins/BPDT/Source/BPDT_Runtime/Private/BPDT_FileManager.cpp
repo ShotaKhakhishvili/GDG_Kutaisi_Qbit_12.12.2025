@@ -432,8 +432,12 @@ bool FBPDT_FileManager::ReadTable(
 
 			if (bIsNull)
 			{
-				Row.SetCell(ColIdx, FBPDT_Cell());
+				Row.SetCell(
+					ColIdx,
+					FBPDT_Cell::MakeNull(Col.Type)
+				);
 			}
+
 			else
 			{
 				TArray<uint8> Data;

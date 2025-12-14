@@ -41,7 +41,10 @@ public:
 
 		case EBPDT_CellType::String:
 		{
-			return FString(UTF8_TO_TCHAR(Data.GetData()));
+			return FString(
+				UTF8_TO_TCHAR(reinterpret_cast<const ANSICHAR*>(Data.GetData())),
+				Data.Num()
+			);
 		}
 
 		default:

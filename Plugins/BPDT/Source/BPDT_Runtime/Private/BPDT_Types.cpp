@@ -59,21 +59,20 @@ bool FBPDT_Cell::AsBool() const
 
 FString FBPDT_Cell::AsString() const
 {
-	check(Type == EBPDT_CellType::String && !bIsNull);
+    check(Type == EBPDT_CellType::String && !bIsNull);
 
-	if (Data.Num() == 0)
-	{
-		return FString();
-	}
+    if (Data.Num() == 0)
+    {
+        return FString();
+    }
 
-	const ANSICHAR* Raw =
-		reinterpret_cast<const ANSICHAR*>(Data.GetData());
+    const ANSICHAR* Utf8 = reinterpret_cast<const ANSICHAR*>(Data.GetData());
+    const int32 Utf8Len = Data.Num();
 
-	return FString(
-		UTF8_TO_TCHAR(Raw),
-		Data.Num()
-	);
+    FUTF8ToTCHAR Converter(Utf8, Utf8Len);
+    return FString(Converter.Length(), Converter.Get());
 }
+
 
 
 FVector FBPDT_Cell::AsVector3() const
