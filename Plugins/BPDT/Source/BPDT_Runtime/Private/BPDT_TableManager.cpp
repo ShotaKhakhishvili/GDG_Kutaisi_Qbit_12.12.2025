@@ -1350,6 +1350,17 @@ bool UBPDT_TableManager::AddForeignKeyConstraint(
 	FKColumn.bIsForeignKey = true;
 	FKColumn.ReferencedTableName = FName(*ReferencedTableName);
 
+	// register FK for persistence
+	AddExistingForeignKeyConstraint(
+		FKTableName,
+		FKColumnName,
+		ReferencedTableName,
+		RefPKName
+	);
+
+	// save immediately
+	SaveForeignKeys();
+
 	return true;
 }
 
@@ -1463,13 +1474,14 @@ bool UBPDT_TableManager::AddExistingForeignKeyConstraint(
 
 bool UBPDT_TableManager::SaveForeignKeys()
 {
-	const FString Dir = FPaths::ProjectSavedDir() / TEXT("BPDT");
+	const FString Dir =
+		FPaths::ProjectSavedDir() / TEXT("Plugins/BPDT");
+
 	IFileManager::Get().MakeDirectory(*Dir, true);
 
 	const FString FilePath = Dir / TEXT("ForeignKeys.txt");
 
 	FString Output;
-
 	for (const FBPDT_ForeignKeyConstraint& FK : ForeignKeys)
 	{
 		Output += FString::Printf(
@@ -1484,10 +1496,11 @@ bool UBPDT_TableManager::SaveForeignKeys()
 	return FFileHelper::SaveStringToFile(Output, *FilePath);
 }
 
+
 bool UBPDT_TableManager::LoadForeignKeys()
 {
 	const FString FilePath =
-		FPaths::ProjectSavedDir() / TEXT("BPDT/ForeignKeys.txt");
+		FPaths::ProjectSavedDir() / TEXT("Plugins/BPDT/ForeignKeys.txt");
 
 	if (!FPaths::FileExists(FilePath))
 	{
@@ -1538,16 +1551,43 @@ void UBPDT_TableManager::ApplyForeignKeysToTables()
 	{
 		FBPDT_Table* FKTable = GetTables().Find(FK.FKTable);
 		if (!FKTable)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[BPDT][FK] FKTable '%s' not found"),
+				*FK.FKTable);
 			continue;
+		}
 
 		const int32 ColIndex = FKTable->GetColumnIndex(FK.FKColumn);
 		if (ColIndex == INDEX_NONE)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[BPDT][FK] FKColumn '%s.%s' not found"),
+				*FK.FKTable,
+				*FK.FKColumn.ToString());
 			continue;
+		}
+
+		FBPDT_Table* PKTable = GetTables().Find(FK.PKTable);
+		if (!PKTable)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[BPDT][FK] PKTable '%s' not found"),
+				*FK.PKTable);
+			continue;
+		}
 
 		FBPDT_Column& Col =
 			const_cast<FBPDT_Column&>(FKTable->GetColumn(ColIndex));
 
 		Col.bIsForeignKey = true;
 		Col.ReferencedTableName = FName(*FK.PKTable);
+
+		UE_LOG(LogTemp, Log,
+			TEXT("[BPDT][FK] Applied FK %s.%s -> %s"),
+			*FK.FKTable,
+			*FK.FKColumn.ToString(),
+			*FK.PKTable);
 	}
 }
+
